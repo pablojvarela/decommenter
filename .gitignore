@@ -25,3 +25,12 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+#Test files
+test
+
+#Eclipse
+.project
+.pydevproject
+.settings
+
