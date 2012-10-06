@@ -4,91 +4,186 @@
 # Licensed for use under http://www.apache.org/licenses/LICENSE-2.0
 #
 import argparse
-import fileinput
+import codecs
 import os
+import shutil
 from xml.etree import ElementTree as et
 
 
-EXT_FILTER = ''
+
+EXT_FILTER = ''         # The extension that filters which files are processed.
+REGION_FILTER = ''      # The name that filters which code regions are processed.
+XML_CATALOG_NAME = ''   # The XML Catalog to scavenge for DOCTYPE declarations.
+XML_CATALOG_TREE = ''   # An ElementTree instance of the XML Catalog.
+NEW_EXT = ''            # The extension to give to new, split files.
+CLEAN = True
+
+
 def filter_extension(extension):
     global EXT_FILTER
     if extension != None:
         EXT_FILTER = '.' + extension
 
 
-REGION_FILTER = ''
 def filter_region(region):
     global REGION_FILTER
     if region != None:
         REGION_FILTER = '#region ' + region
 
+def get_catalog(catalogname):
+    global XML_CATALOG_NAME
+    XML_CATALOG_NAME = catalogname    
+    global XML_CATALOG_TREE
+    XML_CATALOG_TREE = et.parse(open(catalogname, 'r'))
+
+def set_extension(extension):
+    global NEW_EXT
+    NEW_EXT = '.' + extension
 
 
+# Given a source file with code regions, extracts the contents of that region.
 def extract(source_file):    
     print "Extracting..."
     p, e = os.path.splitext(source_file)
-    dita_tmp = p + '.ext.tmp'
+    ext_tmp = p + '.ext'
 
     region = False
-    with open(dita_tmp, 'w') as tmp:
-        for line in fileinput.input(source_file):
-            # Save all lines inside #region DOC
-            if REGION_FILTER in line:
-                region= True
-            if "#end" in line:
-                region= False
-            else: # Somehow the first REGION_FILTER survives if we do not kill it here
-                if region and REGION_FILTER not in line:
+    r = 0
+    with codecs.open(ext_tmp, 'w', encoding='utf-8-sig') as tmp:
+        with codecs.open(source_file, 'rb', 'utf-8') as f:
+            for line in f:
+                # Save all lines inside #region DOC
+                if REGION_FILTER in line:
+                    region= True
+                    r += 1
+                if "#end" in line:
+                    region= False
+                # REGION_FILTER survives if we do not kill it here
+                elif region and REGION_FILTER not in line:
                     tmp.write(line)
-    return dita_tmp
+    
+    # Was any region extracted?
+    if r > 0:
+        return ext_tmp
+    else:
+        os.remove(ext_tmp)
+        return None
 
 
-
+# Given a file with code commented lines, de-comment them.
+# Also, wrap lines with a <dita /> element.  
 def decomment(source_file):
     print "De-commenting..."
-    p, e = os.path.splitext(source_file)
-    dita_tmp = p + '.dec.tmp'
+    dec_tmp = source_file + '.dec'
     
-    with open(dita_tmp, 'w') as tmp:
-        tmp.write(u'<dita>\n')
-        for line in fileinput.input(source_file):
-            # Remove all '///'
-            if '///' in line:
-                i = line.find('///')
-                line = line[:i] + line[i+3:]
-                tmp.write(line)
-        tmp.write(u'\n</dita>')
-    return dita_tmp
+    with codecs.open(dec_tmp, 'w', 'utf-8-sig') as tmp:
+        tmp.write('<data>\n')
+        with codecs.open(source_file, 'rb', 'utf-8-sig') as f:
+            for line in f:
+                # Remove all '///'
+                if '///' in line:
+                    i = line.find('///')
+                    line = line[:i] + line[i+3:]
+                    tmp.write(line)
+        tmp.write('\n</data>')
+    return dec_tmp
 
 
-
+# Given a file with multiple XML tree siblings, split each into a new file.
+# Each new file will be named after the XML tree's root element 'id' attribute.
+# Each new file will have al appropriate DOCTYPE declaration from the XML Catalog
 def split(source_file):
     print "Splitting..."
-    splits = []
-    d, n = os.path.split(source_file)
     
+    splits = [] # The list of new files to create.
+    d, n = os.path.split(source_file)
+
+#    To DO: use pure unicode instead of numerical entities
+#    with codecs.open(source_file, 'r', 'utf-8-sig') as u_source_file:
+#        tree = et.parse(u_source_file)
+
+#   BUG: When parsing from source_file, unicode characters are being converted to numerical entities 
     tree = et.parse(source_file)
     root = tree.getroot()
     for child in root:
-        filename = os.path.join(d, child.attrib['id'] + ".dita")
+        # Set name for new file
+        filename = os.path.join(d, child.attrib['id'] + '.split')
+        # A new tree from this child of root
+        newtree = et.ElementTree(child)
+        # Get DOCTYPE declaration
+        declaration = declare(newtree)
+        with codecs.open(filename, 'a', 'utf-8-sig') as f:
+            f.write(declaration)
+            newtree.write(f)
+
+
+
         splits.append(filename)
-        xml = et.tostring(child, encoding="utf8")
-        with open(filename, 'w') as f:
-            f.write(xml)
     return splits
+
+# Given an xml.ElementTree, get the appropriate DOCTYPE declaration from an XML Catalog.
+def declare(etree):
+    print "Doctyping..."
     
+    # The root defines the XML's type
+    roottype = etree.getroot().tag
+    
+    # Parse the catalog for the appropriate DOCTYPE
+    catalog_root = XML_CATALOG_TREE.getroot()
+    for child in catalog_root:
+        # Check the uri name with .dtd extension
+        if roottype in child.attrib['uri'] and '.dtd' in child.attrib['uri']:
+            publicid = child.attrib['publicId']
+            uri = child.attrib['uri']
+            break
+
+    # Now return DOCTYPE values
+    if publicid != None or uri != None:
+        return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE ' + roottype + ' PUBLIC "' + publicid + '" "' + uri + '">\n'
+    else:
+        return '<?xml version="1.0" encoding="UTF-8"?>\n'
+            
 
 
+#    Given a source code file:
+#        1. Extract lines within a certain region. Decommenter.py expects XML trees as code comments in those lines.
+#        2. Eliminate comment markers from each line.
+#        3. Save each XML tree as a new file.
+#        4. Add DOCTYPE declarations to each new file.
 def pyg(source_file):
-    p, e = os.path.splitext(source_file)
-    if e == EXT_FILTER:
+    # Process only files with a given extension:
+    source_file_path, source_file_extension = os.path.splitext(source_file)
+    if source_file_extension == EXT_FILTER:
         print "Pygging ", source_file
-        ext_tmp = extract(source_file)
-        print "Extracted at ", ext_tmp 
-        dec_tmp = decomment(ext_tmp)
-        print "De-commented at ", dec_tmp
-        spl_tmp = split(dec_tmp)
-        print "Splits at ", spl_tmp
+        
+        extraction_tmp = extract(source_file)
+        if extraction_tmp == None:
+            print 'Nothing to extract in ', source_file
+        else:
+            print "Extracted at ", extraction_tmp 
+        
+            decomment_tmp = decomment(extraction_tmp)
+            print "De-commented at ", decomment_tmp
+            
+            split_tmp = split(decomment_tmp)
+            print "Splits at ", split_tmp
+            
+            print 'Renaming files...'
+            for old in split_tmp:
+                    p, e = os.path.splitext(old)
+                    new = p + NEW_EXT
+                    shutil.copy(old, new)
+    
+            if CLEAN:
+                print 'Removing temporary files...'
+                os.remove(extraction_tmp)
+                os.remove(decomment_tmp)
+                for s in split_tmp:
+                    os.remove(s)
+            else:
+                print "Keeping temporary files."
+
+
 
 
 def main():
@@ -99,18 +194,31 @@ def main():
                         help='Extracts DITA files from source code files. This is the default behavior.')
     parser.add_argument("-i", "--insert", # To Do: not implemented
                         action='store_false',
-                        help='Inserts DITA content into source code files.')
+                        help='Inserts DITA content into source code files. * Not implemented. *')
+    parser.add_argument("-c", "--catalog",
+                        nargs='?',
+                        help='Specifies which XML Catalog to use to resolve DOCTYPE declarations. Only public declarations with uri resolves are supported.')
     parser.add_argument("-g", "--region",
                         nargs='?',
                         default= 'DOC',
+                        const= 'DOC',
                         help='Filters which #region to parse for DITA content. Default\'s to  \'DOC\'.')
-    parser.add_argument("-e", "--extension",
+    parser.add_argument("-f", "--files",
                         nargs='?',
                         default= 'cs',
-                        help='Filters filenames by extension. A value of "cs" will only parse *.cs files, ignoring any other file.')
+                        const= 'cs',
+                        help='Filters filenames by extension. A value of "vx yz" will only parse *.vx and *.yz files, ignoring any other file. Separate multiple extensions with spaces.')
+    parser.add_argument("-e", "--extension",
+                        nargs='?',
+                        default= 'dita',
+                        const= 'dita',
+                        help='Specifies what extension to append to created files. Do not precede with \'.\'.')
     parser.add_argument("-r", "--recursive",
                         action='store_true',
-                        help='Recursively parse all sub-folders and files under source_path. See option "-i".')
+                        help='Recursively parse all sub-folders and files under source_path.')
+    parser.add_argument("-y", "--dirty",
+                        action='store_false',
+                        help='Keep all temporary files. Good for debugging.')
     parser.add_argument("source_path", 
                          nargs='+',
                          help='The path to source files with documentation as code comments. Separate multiple paths with spaces.')
@@ -122,8 +230,23 @@ def main():
     print "Region filter set: ", REGION_FILTER
  
     # Set a value for the extension filter
-    filter_extension(args.extension)
+    filter_extension(args.files)
     print "Extension filter set: ", EXT_FILTER
+    
+    # Set the extension of created files
+    set_extension(args.extension)
+    print "Extension for created files: ", NEW_EXT
+    
+    # Set the XML Catalog
+    get_catalog(args.catalog)
+    print "XML Catalog: ", XML_CATALOG_NAME
+    
+    # Turn cleaning on or off
+    if args.dirty == False:
+        global CLEAN
+        CLEAN = False
+
+
 
     # Process files
     if args.recursive:
