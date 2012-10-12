@@ -31,7 +31,7 @@ XML_CATALOG_NAME = ''   # The XML Catalog to scavenge for DOCTYPE declarations.
 XML_CATALOG_TREE = ''   # An ElementTree instance of the XML Catalog.
 NEW_EXT = ''            # The extension to give to new, split files.
 CLEAN = True
-OUT_DIR = ''         # 
+OUT_DIR = ''            # Output directory where to save extractdd files. 
 
 
 def filter_extension(extension):
@@ -189,10 +189,22 @@ def pyg(source_file):
             print "Splits at ", split_tmp
             
             print 'Renaming files...'
+            final_files = []
             for old in split_tmp:
                     p, e = os.path.splitext(old)
                     new = p + NEW_EXT
                     shutil.copy(old, new)
+                    final_files.append(new)
+    
+            print 'Moving files...'
+            if not os.path.exists(OUT_DIR):
+                os.makedirs(OUT_DIR)
+            for src in final_files:
+                oldpath, filename = os.path.split(src)
+                dst = os.path.join(OUT_DIR, filename)
+                
+                shutil.move(src, dst)
+                print "\t Moved ", oldpath, dst
     
             if CLEAN:
                 print 'Removing temporary files...'
@@ -243,7 +255,7 @@ def main():
                         nargs='?',
                         default= '',
                         const= '',
-                        help='Directory where to save extracted DITA files.')
+                        help='Directory where to save extracted DITA files. Non-existing directories will be created.')
     parser.add_argument("source_path", 
                          nargs='+',
                          help='The path to source files with documentation as code comments. Separate multiple paths with spaces.')
