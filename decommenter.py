@@ -31,6 +31,7 @@ XML_CATALOG_NAME = ''   # The XML Catalog to scavenge for DOCTYPE declarations.
 XML_CATALOG_TREE = ''   # An ElementTree instance of the XML Catalog.
 NEW_EXT = ''            # The extension to give to new, split files.
 CLEAN = True
+OUT_DIR = ''         # 
 
 
 def filter_extension(extension):
@@ -53,6 +54,11 @@ def get_catalog(catalogname):
 def set_extension(extension):
     global NEW_EXT
     NEW_EXT = '.' + extension
+
+
+def set_outdir(dirpath):
+    global OUT_DIR
+    OUT_DIR = dirpath 
 
 
 # Given a source file with code regions, extracts the contents of that region.
@@ -233,6 +239,11 @@ def main():
     parser.add_argument("-y", "--dirty",
                         action='store_false',
                         help='Keep all temporary files. Good for debugging.')
+    parser.add_argument("-o", "--out",
+                        nargs='?',
+                        default= '',
+                        const= '',
+                        help='Directory where to save extracted DITA files.')
     parser.add_argument("source_path", 
                          nargs='+',
                          help='The path to source files with documentation as code comments. Separate multiple paths with spaces.')
@@ -260,7 +271,9 @@ def main():
         global CLEAN
         CLEAN = False
 
-
+    # Set Output Directory
+    set_outdir(args.out)
+    print "Output directory: ", OUT_DIR
 
     # Process files
     if args.recursive:

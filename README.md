@@ -35,7 +35,7 @@ Yet another de-commenter tool
       -r, --recursive       Recursively parse all sub-folders and files under
                             source_path.
       -y, --dirty           Keep all temporary files. Good for debugging.
-
+      -o [OUT], --out [OUT] Directory where to save extracted DITA files.
     
 
 This nifty script takes source code files which contain XML structures inside code #regions as comments. For example:
