@@ -107,10 +107,18 @@ def decomment(source_file):
         tmp.write('<data>\n')
         with codecs.open(source_file, 'rb', 'utf-8-sig') as f:
             for line in f:
-                # Remove all '///'
-                if '///' in line:
-                    i = line.find('///')
-                    line = line[:i] + line[i+3:]
+                # Remove all comment marks
+                comment = re.compile(r"""
+                                    ///              # single line comment mark ///
+                                    | /\*            # or start of block comment /*
+                                    | \*/            # or end of block comment */
+                                    """, re.VERBOSE)
+                match = comment.search(line)
+                if match != None:
+                    # Trim comment marks
+                    newline = line[:match.start()] + line[match.end():]
+                    tmp.write(newline)
+                elif match == None:
                     tmp.write(line)
         tmp.write('\n</data>')
     return dec_tmp
@@ -139,7 +147,7 @@ def split(source_file):
         newtree = et.ElementTree(child)
         # Get DOCTYPE declaration
         declaration = declare(newtree)
-        with codecs.open(filename, 'a', 'utf-8-sig') as f:
+        with codecs.open(filename, 'w', 'utf-8-sig') as f:
             f.write(declaration)
             newtree.write(f)
 
