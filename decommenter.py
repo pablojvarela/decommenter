@@ -21,6 +21,7 @@ import argparse
 import codecs
 import os
 import shutil
+import re
 from xml.etree import ElementTree as et
 
 
@@ -31,7 +32,7 @@ XML_CATALOG_NAME = ''   # The XML Catalog to scavenge for DOCTYPE declarations.
 XML_CATALOG_TREE = ''   # An ElementTree instance of the XML Catalog.
 NEW_EXT = ''            # The extension to give to new, split files.
 CLEAN = True
-OUT_DIR = ''            # Output directory where to save extractdd files. 
+OUT_DIR = ''            # Output directory where to save extracted files. 
 
 
 def filter_extension(extension):
@@ -43,7 +44,12 @@ def filter_extension(extension):
 def filter_region(region):
     global REGION_FILTER
     if region != None:
-        REGION_FILTER = '#region ' + region
+        REGION_FILTER = re.compile(r"""
+            \#               # A macro starts here
+            \s*              # Skip leading whitespace
+            region           # 'region' keyword
+            \s*              # trailing whitespace
+            """ + region, re.VERBOSE)
 
 def get_catalog(catalogname):
     global XML_CATALOG_NAME
@@ -67,22 +73,23 @@ def extract(source_file):
     p, e = os.path.splitext(source_file)
     ext_tmp = p + '.ext'
 
-    region = False
+    isRegion = False
     r = 0
     with codecs.open(ext_tmp, 'w', encoding='utf-8-sig') as tmp:
         with codecs.open(source_file, 'rb', 'utf-8') as f:
             for line in f:
-                # Save all lines inside #region DOC
-                if REGION_FILTER in line:
-                    region= True
+                # Save all lines inside #isRegion DOC
+                match = REGION_FILTER.search(line)
+                if match != None:
+                    isRegion= True
                     r += 1
-                if "#end" in line:
-                    region= False
+                if "endregion" in line:
+                    isRegion= False
                 # REGION_FILTER survives if we do not kill it here
-                elif region and REGION_FILTER not in line:
+                elif isRegion and match == None:
                     tmp.write(line)
     
-    # Was any region extracted?
+    # Was any isRegion extracted?
     if r > 0:
         return ext_tmp
     else:
