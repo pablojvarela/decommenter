@@ -136,8 +136,9 @@ def split(source_file):
 #    To DO: use pure unicode instead of numerical entities
 #    with codecs.open(source_file, 'r', 'utf-8-sig') as u_source_file:
 #        tree = et.parse(u_source_file)
-
 #   BUG: When parsing from source_file, unicode characters are being converted to numerical entities 
+
+    # Catch: if read XML is malformed, exit with an error message.
     tree = et.parse(source_file)
     root = tree.getroot()
     for child in root:
@@ -150,9 +151,6 @@ def split(source_file):
         with codecs.open(filename, 'w', 'utf-8-sig') as f:
             f.write(declaration)
             newtree.write(f)
-
-
-
         splits.append(filename)
     return splits
 
@@ -217,7 +215,7 @@ def pyg(source_file):
             for src in final_files:
                 oldpath, filename = os.path.split(src)
                 dst = os.path.join(OUT_DIR, filename)
-                
+                # Catch: src file does not exist! 'Do you have two topics with the same ID?'
                 shutil.move(src, dst)
                 print "\t Moved ", oldpath, dst
     
