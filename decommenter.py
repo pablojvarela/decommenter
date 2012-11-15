@@ -153,7 +153,7 @@ def split(source_file):
             f.write(declaration)
             # Should we annotate with 'file of origin' information?
             if ANNOTATE:
-                f.write('<!-- Extracted from "' + source_file + '" -->')
+                f.write('<!-- Extracted from "' + source_file + '" -->\n')
             newtree.write(f)
         splits.append(filename)
     return splits
