@@ -31,7 +31,8 @@ REGION_FILTER = ''      # The name that filters which code regions are processed
 XML_CATALOG_NAME = ''   # The XML Catalog to scavenge for DOCTYPE declarations.
 XML_CATALOG_TREE = ''   # An ElementTree instance of the XML Catalog.
 NEW_EXT = ''            # The extension to give to new, split files.
-CLEAN = True
+CLEAN = True            # Do delete temporary files
+ANNOTATE = True         # Do not annotate output files with information about origin.
 OUT_DIR = ''            # Output directory where to save extracted files. 
 
 
@@ -144,12 +145,15 @@ def split(source_file):
     for child in root:
         # Set name for new file
         filename = os.path.join(d, child.attrib['id'] + '.split')
-        # A new tree from this child of root
+        # A new tree from current child
         newtree = et.ElementTree(child)
         # Get DOCTYPE declaration
         declaration = declare(newtree)
         with codecs.open(filename, 'w', 'utf-8-sig') as f:
             f.write(declaration)
+            # Should we annotate with 'file of origin' information?
+            if ANNOTATE:
+                f.write('<!-- Extracted from "' + source_file + '" -->')
             newtree.write(f)
         splits.append(filename)
     return splits
@@ -170,12 +174,12 @@ def declare(etree):
             uri = child.attrib['uri']
             break
 
-    # Now return DOCTYPE values
+    # Define the DOCTYPE declaration
     if publicid != None or uri != None:
         return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE ' + roottype + ' PUBLIC "' + publicid + '" "' + uri + '">\n'
     else:
         return '<?xml version="1.0" encoding="UTF-8"?>\n'
-            
+
 
 
 #    Given a source code file:
@@ -281,6 +285,9 @@ def main():
                         default= '',
                         const= '',
                         help='Directory where to save extracted DITA files. Non-existing directories will be created.')
+    parser.add_argument("--no-annotation",
+                        action='store_false',
+                        help='Do not add "file of origin" information in output files.')
     parser.add_argument("source_path", 
                          nargs='+',
                          help='The path to source files with documentation as code comments. Separate multiple paths with spaces.')
