@@ -165,6 +165,7 @@ def declare(etree):
     # The root defines the XML's type
     roottype = etree.getroot().tag
     
+    # Catch: an appropriate entry for roottype was not found in catalog. Did you specify the correct catalog for this topic type?
     # Parse the catalog for the appropriate DOCTYPE
     catalog_root = XML_CATALOG_TREE.getroot()
     for child in catalog_root:
