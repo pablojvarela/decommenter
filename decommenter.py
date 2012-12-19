@@ -77,7 +77,7 @@ def extract(source_file):
     isRegion = False
     r = 0
     with codecs.open(ext_tmp, 'w', encoding='utf-8-sig') as tmp:
-        with codecs.open(source_file, 'rb', 'utf-8') as f:
+        with codecs.open(source_file, 'rb') as f:
             for line in f:
                 # Save all lines inside Region
                 match = REGION_FILTER.search(line)
@@ -106,7 +106,7 @@ def decomment(source_file):
     
     with codecs.open(dec_tmp, 'w', 'utf-8-sig') as tmp:
         tmp.write('<data>\n')
-        with codecs.open(source_file, 'rb', 'utf-8-sig') as f:
+        with codecs.open(source_file, 'rb') as f:
             for line in f:
                 # Remove all comment marks
                 comment = re.compile(r"""
