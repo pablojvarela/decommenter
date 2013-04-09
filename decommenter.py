@@ -110,7 +110,8 @@ def decomment(source_file):
             for line in f:
                 # Remove all comment marks
                 comment = re.compile(r"""
-                                    ///              # single line comment mark ///
+				                    \#               # single line comment mark (python)
+                                    | ///            # single line comment mark (csharp)
                                     | /\*            # or start of block comment /*
                                     | \*/            # or end of block comment */
                                     """, re.VERBOSE)
